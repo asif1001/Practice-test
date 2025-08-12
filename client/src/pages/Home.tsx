@@ -1,119 +1,158 @@
-// src/pages/Home.tsx
 import React, { useEffect, useState } from "react";
 import {
-  Box, Heading, Text, SimpleGrid, Stat, StatLabel, StatNumber, StatHelpText,
-  Flex, Avatar, Progress, Badge, VStack, Select, Button,
-  Table, Thead, Tbody, Tr, Th, Td, TableContainer
+  Box,
+  Heading,
+  Text,
+  VStack,
+  Select,
+  Button,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  TableContainer,
+  Flex,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  SimpleGrid,
+  Spinner,
 } from "@chakra-ui/react";
 import { auth, db } from "../firebase";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+  orderBy,
+} from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 interface Attempt {
   subject: string;
   module: string;
   score: number;
-  total: number;
-  timeTaken: number;
-  timestamp: any; // Firestore Timestamp
+  date: string;
 }
 
 const Home: React.FC = () => {
   const [user] = useAuthState(auth);
-  const [userData, setUserData] = useState<any>(null);
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [allSubjects, setAllSubjects] = useState<string[]>([]); // All subjects from quizzes
-  const [subject, setSubject] = useState("");
   const navigate = useNavigate();
 
-  // 1) Load user profile
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (user?.uid) {
-        const userRef = doc(db, "userDetails", user.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) setUserData(userSnap.data());
-      }
-    };
-    fetchUserData();
-  }, [user]);
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>("");
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // 2) Load user's attempts (for stats)
   useEffect(() => {
-    const fetchAttempts = async () => {
-      if (!user?.uid) return;
-      const attemptsRef = collection(db, "userAttempts");
-      const q = query(attemptsRef, where("userId", "==", user.uid));
-      const snapshot = await getDocs(q);
-      const data: Attempt[] = snapshot.docs.map((d) => d.data() as Attempt);
-      setAttempts(data);
-    };
-    fetchAttempts();
-  }, [user]);
+    if (!user) return;
 
-  // 3) Load ALL available subjects from Firestore (quizzes collection)
-  useEffect(() => {
-    const fetchAllSubjects = async () => {
+    const fetchSubjectsAndAttempts = async () => {
       try {
-        const snap = await getDocs(collection(db, "quizzes"));
-        const list = snap.docs.map((d) => d.id);
-        setAllSubjects(list);
+        const subjectsSnapshot = await getDocs(collection(db, "subjects"));
+        const subjectList: string[] = [];
+        subjectsSnapshot.forEach((doc) => {
+          subjectList.push(doc.id);
+        });
+        setAvailableSubjects(subjectList);
+        setSelectedSubject(subjectList[0] || "");
+
+        const attemptsRef = collection(db, "attempts");
+        const attemptsQuery = query(
+          attemptsRef,
+          where("userId", "==", user.uid),
+          orderBy("date", "desc")
+        );
+        const snapshot = await getDocs(attemptsQuery);
+        const fetchedAttempts: Attempt[] = snapshot.docs.map((doc) => ({
+          ...doc.data(),
+        })) as Attempt[];
+        setAttempts(fetchedAttempts);
       } catch (error) {
-        console.error("Failed to fetch subjects:", error);
-        setAllSubjects([]); // Fallback to empty array
+        console.error("Error loading data:", error);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchAllSubjects();
-  }, []);
 
-  // Subjects the user has attempted (for results table)
-  const subjectsFromAttempts = Array.from(new Set(attempts.map((a) => a.subject)));
+    fetchSubjectsAndAttempts();
+  }, [user]);
 
   const handleStartTest = () => {
-    if (subject) navigate(`/test?subject=${encodeURIComponent(subject)}`);
+    if (selectedSubject) {
+      navigate(`/test/${selectedSubject}`);
+    }
   };
 
-  // Build results table only for subjects that have attempts
-  const subjectResults = subjectsFromAttempts.map((subj) => {
-    const subAttempts = attempts.filter((a) => a.subject === subj);
-    const latest = [...subAttempts].sort(
-      (a, b) => b.timestamp.toMillis() - a.timestamp.toMillis()
-    )[0];
-    const avgScore =
-      subAttempts.length > 0
-        ? (subAttempts.reduce((acc, a) => acc + a.score, 0) / subAttempts.length).toFixed(1)
-        : "0.0";
-    return { subject: subj, latest, avgScore, totalAttempts: subAttempts.length };
-  });
+  if (!user) return <Text>Please login to access the dashboard.</Text>;
+  if (loading) return <Spinner size="xl" />;
 
   return (
-    <Box maxW="1200px" mx="auto" p={6}>
-      {/* ... (keep existing UI code until the Select dropdown) ... */}
+    <Box p={6}>
+      <Heading size="lg" mb={4}>
+        Welcome to Your Dashboard
+      </Heading>
 
-      <VStack align="start" spacing={4} mb={8}>
-        <Heading size="md">Start a Practice Test</Heading>
+      <Box mb={6}>
+        <Text fontSize="lg" fontWeight="semibold">
+          Select Subject to Start New Test
+        </Text>
+        <Flex gap={4} mt={2} align="center">
+          <Select
+            placeholder="Select Subject"
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(e.target.value)}
+            maxW="300px"
+          >
+            {availableSubjects.map((subj) => (
+              <option key={subj} value={subj}>
+                {subj}
+              </option>
+            ))}
+          </Select>
+          <Button colorScheme="teal" onClick={handleStartTest}>
+            Start Test
+          </Button>
+        </Flex>
+      </Box>
 
-        <Select
-          placeholder={allSubjects.length ? "Select Subject" : "Loading subjects..."}
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          maxW="400px"
-          isDisabled={allSubjects.length === 0}
-        >
-          {allSubjects.map((subj) => (
-            <option key={subj} value={subj}>
-              {subj}
-            </option>
-          ))}
-        </Select>
-
-        <Button colorScheme="green" onClick={handleStartTest} isDisabled={!subject}>
-          Start Test
-        </Button>
-      </VStack>
-
-      {/* ... (rest of the code remains the same) ... */}
+      <Box>
+        <Heading size="md" mb={3}>
+          Your Recent Test Attempts
+        </Heading>
+        {attempts.length === 0 ? (
+          <Text>No attempts yet.</Text>
+        ) : (
+          <TableContainer>
+            <Table variant="simple" size="md">
+              <Thead>
+                <Tr>
+                  <Th>Subject</Th>
+                  <Th>Module</Th>
+                  <Th>Score</Th>
+                  <Th>Date</Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {attempts.map((attempt, index) => (
+                  <Tr key={index}>
+                    <Td>{attempt.subject}</Td>
+                    <Td>{attempt.module}</Td>
+                    <Td>{attempt.score}%</Td>
+                    <Td>{new Date(attempt.date).toLocaleString()}</Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </TableContainer>
+        )}
+      </Box>
     </Box>
   );
 };
