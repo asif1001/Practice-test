@@ -1,25 +1,44 @@
+// src/App.tsx
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import ErrorBoundary from "./ErrorBoundary";
-
-// ✅ Only Login is real for now; others are placeholders.
-// (We’ll swap them back one by one.)
 import Login from "./pages/Login";
+import Register from "./pages/Register";
+import UserDetailsForm from "./pages/UserDetailsForm";
+import Home from "./pages/Home";
+import Test from "./pages/Test";
 
-function Page({ title }: { title: string }) {
-  return <div style={{ padding: 20, fontSize: 24 }}>{title}</div>;
-}
+import AdminLayout from "./admin/layout/AdminLayout";
+import AdminSubjects from "./admin/pages/AdminSubjects";
+import AdminUsers from "./admin/pages/AdminUsers";
+import AdminDashboard from "./admin/pages/AdminDashboard";
+import AdminQuizzes from "./admin/pages/AdminQuizzes";
+import AdminAnalytics from "./admin/pages/AdminAnalytics";
+import UploadQuizCSV from "./admin/pages/UploadQuizCSV";
 
-export default function App() {
+function App() {
   return (
-    <ErrorBoundary>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/home" element={<Page title="Home Page (placeholder)" />} />
-        <Route path="/test" element={<Page title="Test Page (placeholder)" />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </ErrorBoundary>
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/user-details" element={<UserDetailsForm />} />
+      <Route path="/home" element={<Home />} />
+      <Route path="/test" element={<Test />} />
+
+      {/* Admin Panel */}
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route path="subjects" element={<AdminSubjects />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="dashboard" element={<AdminDashboard />} />
+        <Route path="quizzes" element={<AdminQuizzes />} />
+        <Route path="analytics" element={<AdminAnalytics />} />
+        <Route path="upload-csv" element={<UploadQuizCSV />} />
+      </Route>
+
+      {/* catch-all */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
   );
 }
+
+export default App;
