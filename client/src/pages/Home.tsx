@@ -1,9 +1,10 @@
+// src/pages/Home.tsx
+
 import React, { useEffect, useState } from "react";
 import {
   Box,
   Heading,
   Text,
-  VStack,
   Select,
   Button,
   Table,
@@ -14,11 +15,6 @@ import {
   Td,
   TableContainer,
   Flex,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
-  SimpleGrid,
   Spinner,
 } from "@chakra-ui/react";
 import { auth, db } from "../firebase";
@@ -28,8 +24,6 @@ import {
   getDocs,
   query,
   where,
-  doc,
-  getDoc,
   orderBy,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
@@ -45,43 +39,46 @@ const Home: React.FC = () => {
   const [user] = useAuthState(auth);
   const navigate = useNavigate();
 
-  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
+  const [subjects, setSubjects] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
 
-    const fetchSubjectsAndAttempts = async () => {
+    const loadData = async () => {
       try {
-        const subjectsSnapshot = await getDocs(collection(db, "subjects"));
+        // Load subjects
+        const subjectSnapshot = await getDocs(collection(db, "subjects"));
         const subjectList: string[] = [];
-        subjectsSnapshot.forEach((doc) => {
+        subjectSnapshot.forEach((doc) => {
           subjectList.push(doc.id);
         });
-        setAvailableSubjects(subjectList);
+
+        console.log("Fetched subjects:", subjectList);
+        setSubjects(subjectList);
         setSelectedSubject(subjectList[0] || "");
 
-        const attemptsRef = collection(db, "attempts");
+        // Load attempts
         const attemptsQuery = query(
-          attemptsRef,
+          collection(db, "attempts"),
           where("userId", "==", user.uid),
           orderBy("date", "desc")
         );
-        const snapshot = await getDocs(attemptsQuery);
-        const fetchedAttempts: Attempt[] = snapshot.docs.map((doc) => ({
+        const attemptsSnapshot = await getDocs(attemptsQuery);
+        const userAttempts: Attempt[] = attemptsSnapshot.docs.map((doc) => ({
           ...doc.data(),
         })) as Attempt[];
-        setAttempts(fetchedAttempts);
+        setAttempts(userAttempts);
       } catch (error) {
-        console.error("Error loading data:", error);
+        console.error("Error loading dashboard data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSubjectsAndAttempts();
+    loadData();
   }, [user]);
 
   const handleStartTest = () => {
@@ -90,36 +87,40 @@ const Home: React.FC = () => {
     }
   };
 
-  if (!user) return <Text>Please login to access the dashboard.</Text>;
-  if (loading) return <Spinner size="xl" />;
+  if (!user) return <Text>Please login to continue.</Text>;
+  if (loading) return <Spinner size="xl" thickness="4px" speed="0.65s" />;
 
   return (
     <Box p={6}>
       <Heading size="lg" mb={4}>
-        Welcome to Your Dashboard
+        Welcome to Your CSCP Practice Dashboard
       </Heading>
 
       <Box mb={6}>
-        <Text fontSize="lg" fontWeight="semibold">
-          Select Subject to Start New Test
+        <Text fontWeight="semibold" fontSize="lg" mb={2}>
+          Choose a Subject to Start a Test
         </Text>
-        <Flex gap={4} mt={2} align="center">
-          <Select
-            placeholder="Select Subject"
-            value={selectedSubject}
-            onChange={(e) => setSelectedSubject(e.target.value)}
-            maxW="300px"
-          >
-            {availableSubjects.map((subj) => (
-              <option key={subj} value={subj}>
-                {subj}
-              </option>
-            ))}
-          </Select>
-          <Button colorScheme="teal" onClick={handleStartTest}>
-            Start Test
-          </Button>
-        </Flex>
+        {subjects.length > 0 ? (
+          <Flex gap={4} align="center">
+            <Select
+              value={selectedSubject}
+              onChange={(e) => setSelectedSubject(e.target.value)}
+              maxW="300px"
+              placeholder="Select Subject"
+            >
+              {subjects.map((subj) => (
+                <option key={subj} value={subj}>
+                  {subj}
+                </option>
+              ))}
+            </Select>
+            <Button colorScheme="teal" onClick={handleStartTest}>
+              Start Test
+            </Button>
+          </Flex>
+        ) : (
+          <Text color="red.500">No subjects available. Please contact admin.</Text>
+        )}
       </Box>
 
       <Box>
@@ -127,10 +128,10 @@ const Home: React.FC = () => {
           Your Recent Test Attempts
         </Heading>
         {attempts.length === 0 ? (
-          <Text>No attempts yet.</Text>
+          <Text>No test attempts found.</Text>
         ) : (
           <TableContainer>
-            <Table variant="simple" size="md">
+            <Table size="md" variant="striped">
               <Thead>
                 <Tr>
                   <Th>Subject</Th>
@@ -140,8 +141,8 @@ const Home: React.FC = () => {
                 </Tr>
               </Thead>
               <Tbody>
-                {attempts.map((attempt, index) => (
-                  <Tr key={index}>
+                {attempts.map((attempt, i) => (
+                  <Tr key={i}>
                     <Td>{attempt.subject}</Td>
                     <Td>{attempt.module}</Td>
                     <Td>{attempt.score}%</Td>
@@ -157,4 +158,3 @@ const Home: React.FC = () => {
   );
 };
 
-export default Home;
