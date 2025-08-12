@@ -1,4 +1,4 @@
-// ✅ Redesigned Login.tsx: cleaner UI with modern layout
+// ✅ Redesigned Login.tsx: cleaner UI with modern layout + password reset
 import React, { useState } from "react";
 import {
   Box,
@@ -12,8 +12,14 @@ import {
   Text,
   Flex,
   Divider,
+  Link as ChakraLink,
 } from "@chakra-ui/react";
-import { signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  setPersistence,
+  browserLocalPersistence,
+  sendPasswordResetEmail,
+} from "firebase/auth";
 import { auth, db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useNavigate, Link } from "react-router-dom";
@@ -23,6 +29,7 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -37,7 +44,7 @@ const Login: React.FC = () => {
 
     setLoading(true);
 
-    // ✅ Step 1: Bypass Firebase for hardcoded admin
+    // ✅ Step 1: Hardcoded admin login
     if (e === "asif1001@gmail.com" && p === "12345678") {
       toast({ title: "Admin login successful.", status: "success", isClosable: true });
       setLoading(false);
@@ -46,10 +53,10 @@ const Login: React.FC = () => {
     }
 
     try {
-      // Persist login in browser (good for GitHub Pages)
+      // Keep user signed in on browser refresh
       await setPersistence(auth, browserLocalPersistence);
 
-      // ✅ Step 2: Regular Firebase login for all others
+      // ✅ Step 2: Firebase login
       const userCredential = await signInWithEmailAndPassword(auth, e, p);
       const uid = userCredential.user.uid;
 
@@ -68,7 +75,6 @@ const Login: React.FC = () => {
       }
     } catch (err) {
       const fe = err as FirebaseError;
-      // Show exact reason (auth/invalid-credential, auth/user-not-found, etc.)
       toast({
         title: "Login failed.",
         description: fe.code || fe.message,
@@ -78,6 +84,33 @@ const Login: React.FC = () => {
       console.error("LOGIN ERROR:", fe.code, fe.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!email) {
+      toast({ title: "Enter your email to reset password", status: "warning", isClosable: true });
+      return;
+    }
+    setResetting(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      toast({
+        title: "Password reset email sent.",
+        description: "Check your inbox for reset instructions.",
+        status: "success",
+        isClosable: true,
+      });
+    } catch (err) {
+      const fe = err as FirebaseError;
+      toast({
+        title: "Error sending reset email.",
+        description: fe.code || fe.message,
+        status: "error",
+        isClosable: true,
+      });
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -106,6 +139,19 @@ const Login: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
             />
           </FormControl>
+
+          {/* Forgot password link */}
+          <ChakraLink
+            onClick={resetting ? undefined : handleReset}
+            textAlign="center"
+            color="blue.500"
+            cursor="pointer"
+            aria-disabled={resetting}
+            pointerEvents={resetting ? "none" : "auto"}
+            opacity={resetting ? 0.6 : 1}
+          >
+            {resetting ? "Sending reset email…" : "Forgot password?"}
+          </ChakraLink>
 
           <Button colorScheme="blue" w="full" onClick={handleLogin} mt={2} isLoading={loading}>
             Sign In
