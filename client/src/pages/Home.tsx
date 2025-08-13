@@ -24,6 +24,7 @@ import {
   Td,
   TableContainer,
   useToast,
+  Spacer,
 } from "@chakra-ui/react";
 import { auth, db } from "../firebase";
 import {
@@ -52,17 +53,15 @@ interface Attempt {
 const Home: React.FC = () => {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<any>(null);
-
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [subjectsFromAttempts, setSubjectsFromAttempts] = useState<string[]>([]);
   const [allSubjects, setAllSubjects] = useState<string[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
-
   const [subject, setSubject] = useState("");
   const navigate = useNavigate();
   const toast = useToast();
 
-  // 1) Load user profile
+  // 1. Load user profile
   useEffect(() => {
     const fetchUserData = async () => {
       if (!user?.uid) return;
@@ -77,7 +76,7 @@ const Home: React.FC = () => {
     fetchUserData();
   }, [user]);
 
-  // 2) Load attempts for this user
+  // 2. Load user attempts
   useEffect(() => {
     const fetchAttempts = async () => {
       if (!user?.uid) return;
@@ -95,7 +94,7 @@ const Home: React.FC = () => {
     fetchAttempts();
   }, [user]);
 
-  // 3) Load ALL subjects by scanning every `questions` subcollection
+  // 3. Load all available subjects
   useEffect(() => {
     const fetchAllSubjects = async () => {
       setLoadingSubjects(true);
@@ -103,7 +102,7 @@ const Home: React.FC = () => {
         const snap = await getDocs(collectionGroup(db, "questions"));
         const subjects = new Set<string>();
         snap.forEach((docSnap) => {
-          const subjectId = docSnap.ref.parent.parent?.id; // quizzes/{subject}/questions/{qid}
+          const subjectId = docSnap.ref.parent.parent?.id;
           const fallback = (docSnap.data() as any)?.subject;
           if (subjectId) subjects.add(subjectId);
           else if (fallback) subjects.add(String(fallback));
@@ -130,7 +129,7 @@ const Home: React.FC = () => {
     fetchAllSubjects();
   }, [toast]);
 
-  // Union: show everything available (even if user never attempted it)
+  // Final dropdown list
   const subjectsForDropdown = useMemo(
     () => Array.from(new Set([...allSubjects, ...subjectsFromAttempts])).sort(),
     [allSubjects, subjectsFromAttempts]
@@ -140,7 +139,19 @@ const Home: React.FC = () => {
     if (subject) navigate(`/test?subject=${encodeURIComponent(subject)}`);
   };
 
-  // Build results table for subjects the user has actually attempted
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      navigate("/login");
+    } catch (e) {
+      toast({
+        title: "Logout failed",
+        description: "Please try again",
+        status: "error",
+      });
+    }
+  };
+
   const subjectResults = useMemo(() => {
     return subjectsFromAttempts.map((subj) => {
       const subAttempts = attempts.filter((a) => a.subject === subj);
@@ -163,6 +174,10 @@ const Home: React.FC = () => {
           <Heading size="lg">Welcome back, {userData?.fullName || "User"} 👋</Heading>
           <Text color="gray.600">Ready to level up your skills?</Text>
         </Box>
+        <Spacer />
+        <Button colorScheme="red" onClick={handleLogout}>
+          Logout
+        </Button>
       </Flex>
 
       <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mb={8}>
@@ -199,7 +214,6 @@ const Home: React.FC = () => {
 
       <VStack align="start" spacing={4} mb={8}>
         <Heading size="md">Start a Practice Test</Heading>
-
         <Select
           placeholder={
             loadingSubjects
@@ -219,7 +233,6 @@ const Home: React.FC = () => {
             </option>
           ))}
         </Select>
-
         <Button colorScheme="green" onClick={handleStartTest} isDisabled={!subject}>
           Start Test
         </Button>
@@ -251,9 +264,7 @@ const Home: React.FC = () => {
                       </Td>
                       <Td>{res.totalAttempts}</Td>
                       <Td>{res.avgScore}</Td>
-                      <Td>
-                        {new Date(res.latest.timestamp.toMillis()).toLocaleString()}
-                      </Td>
+                      <Td>{new Date(res.latest.timestamp.toMillis()).toLocaleString()}</Td>
                     </Tr>
                   ) : null
                 )}
